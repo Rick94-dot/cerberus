@@ -303,6 +303,152 @@
   }
   .suggestions .msg:hover { background: none; }
 
+  /* ---------- placeholder rotativo ---------- */
+  .searchbar input::placeholder {
+    color: #6b6b76;
+    transition: opacity .35s ease;
+    opacity: 1;
+  }
+  .searchbar input.ph-out::placeholder { opacity: 0; }
+
+  /* ---------- operadoras ---------- */
+  .operators {
+    width: min(920px, 100%);
+    margin: 52px auto 0;
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px);
+    transition: opacity .45s ease, transform .45s ease, visibility .45s;
+  }
+  .operators.show { opacity: 1; visibility: visible; transform: none; }
+
+  .operators-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .operators-head h2 {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .operators-head .count { font-size: 0.8rem; font-weight: 300; color: var(--dim); }
+
+  .toggle-all {
+    background: none;
+    border: 1px solid var(--faint);
+    border-radius: 999px;
+    padding: 7px 16px;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color .25s ease, background .25s ease, color .25s ease;
+  }
+  .toggle-all:hover { border-color: rgba(215,0,100,0.6); }
+  .toggle-all[aria-pressed="true"] {
+    background: rgba(215,0,100,0.16);
+    border-color: var(--brand);
+    color: #ff7ab0;
+  }
+
+  .operator-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+
+  .op-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(19,19,24,0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--ink);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .25s cubic-bezier(0.34,1.56,0.64,1),
+                border-color .25s ease, background .25s ease, box-shadow .25s ease;
+  }
+  .op-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 26px rgba(0,0,0,0.45);
+    border-color: rgba(255,255,255,0.18);
+  }
+  .op-card[aria-pressed="true"] {
+    border-color: var(--brand);
+    background: rgba(215,0,100,0.12);
+    box-shadow: 0 0 0 1px rgba(215,0,100,0.35), 0 12px 30px rgba(215,0,100,0.16);
+  }
+
+  .op-mark {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,0.06);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--dim);
+    transition: background .25s ease, color .25s ease;
+  }
+  .op-card[aria-pressed="true"] .op-mark {
+    background: var(--brand);
+    color: #fff;
+  }
+
+  .op-name {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .op-sub {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.72rem;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .op-check {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 16px;
+    height: 16px;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity .25s ease, transform .25s ease;
+    color: var(--brand);
+  }
+  .op-card[aria-pressed="true"] .op-check { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .op-card, .operators { transition: none; }
+  }
+
   /* ---------- menu (igual ao da home) ---------- */
   .menu-btn {
     position: fixed;
@@ -535,6 +681,16 @@
     </div>
     <ul class="suggestions" id="suggestions" role="listbox" aria-label="Cidades encontradas"></ul>
   </div>
+
+  <section class="operators" id="operators" aria-hidden="true">
+    <div class="operators-head">
+      <h2>Operadoras <span class="count" id="opCount"></span></h2>
+      <button type="button" class="toggle-all" id="toggleAll" aria-pressed="false">
+        Selecionar todas
+      </button>
+    </div>
+    <div class="operator-grid" id="operatorGrid" role="group" aria-label="Selecione uma ou mais operadoras"></div>
+  </section>
 </main>
 </div>
 
@@ -762,6 +918,173 @@
 
     // exemplo de uso: escute o evento para reagir à escolha
     // input.addEventListener("city:selected", e => console.log(e.detail));
+  })();
+
+  /* ---------- exemplos girando no campo de busca ---------- */
+  (function rotatingPlaceholder() {
+    const input = document.getElementById("q");
+    if (!input) return;
+
+    const EXAMPLES = [
+      "São Paulo - SP", "Barueri - SP", "Belo Horizonte - MG", "Curitiba - PR",
+      "Salvador - BA", "Recife - PE", "Porto Alegre - RS", "Fortaleza - CE",
+      "Campinas - SP", "Goiânia - GO", "Manaus - AM", "Niterói - RJ",
+      "Florianópolis - SC", "Osasco - SP", "Belém - PA", "Vitória - ES"
+    ];
+
+    let order = [];
+    let paused = false;
+
+    // embaralha para os exemplos não saírem sempre na mesma ordem
+    function reshuffle() {
+      order = EXAMPLES.slice();
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+    }
+    reshuffle();
+
+    function next() {
+      if (!order.length) reshuffle();
+      return "Buscar cidade — ex: " + order.pop();
+    }
+
+    input.placeholder = next();
+
+    setInterval(() => {
+      if (paused || input.value) return;
+      input.classList.add("ph-out");
+      setTimeout(() => {
+        input.placeholder = next();
+        input.classList.remove("ph-out");
+      }, 350);
+    }, 2800);
+
+    input.addEventListener("focus", () => {
+      paused = true;
+      input.classList.remove("ph-out");
+      input.placeholder = "Buscar cidade...";
+    });
+    input.addEventListener("blur", () => {
+      if (!input.value) { paused = false; input.placeholder = next(); }
+    });
+  })();
+
+  /* ---------- operadoras ---------- */
+  (function operators() {
+    const OPERATORS = [
+      { name: "OdontoPrev", mark: "OP" },
+      { name: "SulAmérica", mark: "SA" },
+      { name: "Unimed",     mark: "UN" },
+      { name: "MetLife",    mark: "ML" },
+      { name: "Hapvida",    mark: "HP" },
+      { name: "Amil",       mark: "AM" }
+    ];
+
+    const section = document.getElementById("operators");
+    const grid = document.getElementById("operatorGrid");
+    const toggleAll = document.getElementById("toggleAll");
+    const countEl = document.getElementById("opCount");
+    const input = document.getElementById("q");
+    if (!section || !grid || !toggleAll) return;
+
+    const selected = new Set();
+    const cards = new Map();
+
+    function checkIcon() {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("class", "op-check");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "3");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", "M20 6 9 17l-5-5");
+      svg.appendChild(path);
+      return svg;
+    }
+
+    OPERATORS.forEach(op => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "op-card";
+      card.setAttribute("aria-pressed", "false");
+      card.setAttribute("aria-label", op.name);
+
+      const mark = document.createElement("span");
+      mark.className = "op-mark";
+      mark.textContent = op.mark;
+      mark.setAttribute("aria-hidden", "true");
+
+      const text = document.createElement("span");
+      const name = document.createElement("span");
+      name.className = "op-name";
+      name.textContent = op.name;
+      const sub = document.createElement("span");
+      sub.className = "op-sub";
+      sub.textContent = "Odontológico";
+      text.appendChild(name);
+      text.appendChild(sub);
+
+      card.appendChild(mark);
+      card.appendChild(text);
+      card.appendChild(checkIcon());
+
+      card.addEventListener("click", () => {
+        if (selected.has(op.name)) selected.delete(op.name);
+        else selected.add(op.name);
+        sync();
+      });
+
+      cards.set(op.name, card);
+      grid.appendChild(card);
+    });
+
+    function sync() {
+      cards.forEach((card, name) => {
+        card.setAttribute("aria-pressed", String(selected.has(name)));
+      });
+      const all = selected.size === OPERATORS.length;
+      toggleAll.setAttribute("aria-pressed", String(all));
+      toggleAll.textContent = all ? "Limpar seleção" : "Selecionar todas";
+      countEl.textContent = selected.size
+        ? "· " + selected.size + " de " + OPERATORS.length
+        : "";
+    }
+
+    toggleAll.addEventListener("click", () => {
+      if (selected.size === OPERATORS.length) selected.clear();
+      else OPERATORS.forEach(op => selected.add(op.name));
+      sync();
+    });
+
+    function reveal(state) {
+      section.classList.toggle("show", state);
+      section.setAttribute("aria-hidden", String(!state));
+    }
+
+    // só aparece depois que uma cidade foi escolhida na lista
+    input.addEventListener("city:selected", e => {
+      reveal(true);
+      section.dataset.city = e.detail.name;
+      section.dataset.uf = e.detail.uf || "";
+    });
+
+    // se o usuário volta a mexer no campo, a escolha anterior deixa de valer
+    input.addEventListener("input", () => {
+      if (input.value !== (section.dataset.city
+          ? section.dataset.city + (section.dataset.uf ? " - " + section.dataset.uf : "")
+          : null)) {
+        reveal(false);
+      }
+    });
+
+    sync();
   })();
 
   /* ---------- menu ---------- */
