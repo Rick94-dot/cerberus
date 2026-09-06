@@ -422,16 +422,6 @@
     font-weight: 400;
     line-height: 1.2;
   }
-  .op-sub {
-    display: block;
-    margin-top: 3px;
-    font-size: 0.72rem;
-    font-weight: 300;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--dim);
-  }
-
   .op-check {
     position: absolute;
     top: 14px;
@@ -447,6 +437,91 @@
 
   @media (prefers-reduced-motion: reduce) {
     .op-card, .operators { transition: none; }
+  }
+
+  /* ---------- especialidades ---------- */
+  .specialties {
+    width: min(920px, 100%);
+    margin: 44px auto 0;
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px);
+    transition: opacity .45s ease, transform .45s ease, visibility .45s;
+  }
+  .specialties.show { opacity: 1; visibility: visible; transform: none; }
+
+  .spec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .spec-head h2 {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .spec-head .count { font-size: 0.8rem; font-weight: 300; color: var(--dim); }
+  .spec-note {
+    margin: 0 0 18px;
+    font-size: 0.82rem;
+    font-weight: 300;
+    color: var(--dim);
+  }
+
+  .spec-list {
+    display: grid;
+    gap: 4px 22px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 300;
+    color: var(--ink);
+    transition: background .2s ease;
+  }
+  .check-item:hover { background: rgba(255,255,255,0.045); }
+
+  .check-item input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .check-box {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.28);
+    background: transparent;
+    transition: background .2s ease, border-color .2s ease;
+  }
+  .check-box svg { width: 11px; height: 11px; opacity: 0; transform: scale(0.6);
+                   transition: opacity .2s ease, transform .2s ease; color: #fff; }
+  .check-item input:checked + .check-box {
+    background: var(--brand);
+    border-color: var(--brand);
+  }
+  .check-item input:checked + .check-box svg { opacity: 1; transform: none; }
+  .check-item input:focus-visible + .check-box {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
 
   /* ---------- menu (igual ao da home) ---------- */
@@ -690,6 +765,17 @@
       </button>
     </div>
     <div class="operator-grid" id="operatorGrid" role="group" aria-label="Selecione uma ou mais operadoras"></div>
+  </section>
+
+  <section class="specialties" id="specialties" aria-hidden="true">
+    <div class="spec-head">
+      <h2 id="specCaption">Especialidades <span class="count" id="specCount"></span></h2>
+      <button type="button" class="toggle-all" id="specToggleAll" aria-pressed="false">
+        Selecionar todas
+      </button>
+    </div>
+    <p class="spec-note" id="specNote"></p>
+    <div class="spec-list" id="specList" role="group" aria-labelledby="specCaption"></div>
   </section>
 </main>
 </div>
@@ -947,7 +1033,7 @@
 
     function next() {
       if (!order.length) reshuffle();
-      return "Buscar cidade — ex: " + order.pop();
+      return order.pop();
     }
 
     input.placeholder = next();
@@ -1025,11 +1111,7 @@
       const name = document.createElement("span");
       name.className = "op-name";
       name.textContent = op.name;
-      const sub = document.createElement("span");
-      sub.className = "op-sub";
-      sub.textContent = "Odontológico";
       text.appendChild(name);
-      text.appendChild(sub);
 
       card.appendChild(mark);
       card.appendChild(text);
@@ -1055,6 +1137,11 @@
       countEl.textContent = selected.size
         ? "· " + selected.size + " de " + OPERATORS.length
         : "";
+
+      section.dispatchEvent(new CustomEvent("operators:changed", {
+        bubbles: true,
+        detail: { selected: Array.from(selected) }
+      }));
     }
 
     toggleAll.addEventListener("click", () => {
@@ -1066,6 +1153,7 @@
     function reveal(state) {
       section.classList.toggle("show", state);
       section.setAttribute("aria-hidden", String(!state));
+      if (!state) { selected.clear(); sync(); }
     }
 
     // só aparece depois que uma cidade foi escolhida na lista
@@ -1085,6 +1173,157 @@
     });
 
     sync();
+  })();
+
+  /* ---------- especialidades por operadora ---------- */
+  (function specialties() {
+    // cada operadora usa a própria nomenclatura
+    const BY_OPERATOR = {
+      "OdontoPrev": [
+        "Clínico Geral", "Ortodontia", "Endodontia", "Periodontia",
+        "Cirurgia", "Odontopediatria", "Prótese Dentária", "Radiologia"
+      ],
+      "Unimed": [
+        "Cirurgia", "Clínico Geral", "Dentística", "Endodontia",
+        "Odontopediatria", "Ortodontia", "Pacientes Especiais", "Periodontia",
+        "Prótese", "Radiologia", "Urgência (Hora Comercial)", "Urgência (24 horas)"
+      ],
+      "MetLife": [
+        "Cirurgia", "Clínico Geral", "Dentística", "Endodontia",
+        "Odontopediatria", "Ortodontia", "Pacientes Especiais", "Periodontia",
+        "Prótese", "Urgência", "Urgência 24 Horas", "Urgência Diurna"
+      ],
+      "Hapvida": [
+        "Cirurgia", "Endodontia", "Clínico Geral", "Odontopediatria",
+        "Ortodontia", "Periodontia", "Prótese Dentária", "Radiologia"
+      ],
+      "SulAmérica": [
+        "Cirurgia", "Clínica Geral", "Dentística", "Endodontia",
+        "Odontopediatria", "Ortodontia", "Pacientes Especiais", "Periodontia",
+        "Prótese", "Radiologia", "Radiologia com Escaneamento",
+        "Radiologia com Tomografia", "Urgência 24 Hs", "Urgência Diurna"
+      ],
+      "Amil": [
+        "Cirurgia - Extrações", "Cirurgia Espec/Divulg", "Clínica Geral",
+        "Endodontia - Canal", "Implantodontia",
+        "Odontologia Estética - Clareamento", "Odontopediatria", "Ortodontia",
+        "Periodontia - Tratamento de Gengiva", "Prótese Dentária"
+      ]
+    };
+
+    // com duas ou mais operadoras, mostra a lista única e a tradução
+    // para o nome de cada operadora acontece nos bastidores
+    const CANONICAL = [
+      "Cirurgia", "Clínica Geral", "Dentística", "Endodontia", "Implantodontia",
+      "Odontologia Estética", "Odontopediatria", "Ortodontia",
+      "Pacientes Especiais", "Periodontia", "Prótese", "Radiologia", "Urgência"
+    ];
+
+    const section = document.getElementById("specialties");
+    const listEl = document.getElementById("specList");
+    const noteEl = document.getElementById("specNote");
+    const countEl = document.getElementById("specCount");
+    const toggleAll = document.getElementById("specToggleAll");
+    const operators = document.getElementById("operators");
+    if (!section || !listEl || !operators) return;
+
+    let current = [];               // especialidades exibidas agora
+    const selected = new Set();     // escolhas do usuário
+
+    function checkIcon() {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("viewBox", "0 0 10 10");
+      svg.setAttribute("fill", "currentColor");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", "M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z");
+      svg.appendChild(path);
+      return svg;
+    }
+
+    function render() {
+      listEl.innerHTML = "";
+      current.forEach((spec, i) => {
+        const label = document.createElement("label");
+        label.className = "check-item";
+
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.name = "especialidade";
+        box.value = spec;
+        box.checked = selected.has(spec);
+        box.addEventListener("change", () => {
+          if (box.checked) selected.add(spec);
+          else selected.delete(spec);
+          sync();
+        });
+
+        const visual = document.createElement("span");
+        visual.className = "check-box";
+        visual.setAttribute("aria-hidden", "true");
+        visual.appendChild(checkIcon());
+
+        const text = document.createElement("span");
+        text.textContent = spec;
+
+        label.appendChild(box);
+        label.appendChild(visual);
+        label.appendChild(text);
+        listEl.appendChild(label);
+      });
+      sync();
+    }
+
+    function sync() {
+      const all = current.length > 0 && selected.size === current.length;
+      toggleAll.setAttribute("aria-pressed", String(all));
+      toggleAll.textContent = all ? "Limpar seleção" : "Selecionar todas";
+      countEl.textContent = selected.size
+        ? "· " + selected.size + " de " + current.length
+        : "";
+    }
+
+    toggleAll.addEventListener("click", () => {
+      if (selected.size === current.length) selected.clear();
+      else current.forEach(s => selected.add(s));
+      listEl.querySelectorAll("input").forEach(i => {
+        i.checked = selected.has(i.value);
+      });
+      sync();
+    });
+
+    operators.addEventListener("operators:changed", e => {
+      const ops = e.detail.selected;
+
+      if (!ops.length) {
+        section.classList.remove("show");
+        section.setAttribute("aria-hidden", "true");
+        selected.clear();
+        current = [];
+        listEl.innerHTML = "";
+        return;
+      }
+
+      if (ops.length === 1) {
+        current = (BY_OPERATOR[ops[0]] || []).slice();
+        noteEl.textContent = "Especialidades disponíveis na " + ops[0] + ".";
+      } else {
+        current = CANONICAL.slice();
+        noteEl.textContent =
+          "Lista única para as " + ops.length +
+          " operadoras selecionadas; cada item é convertido para o nome usado por cada uma.";
+      }
+
+      // mantém o que já estava marcado, se ainda existir na nova lista
+      Array.from(selected).forEach(s => {
+        if (!current.includes(s)) selected.delete(s);
+      });
+
+      render();
+      section.classList.add("show");
+      section.setAttribute("aria-hidden", "false");
+    });
   })();
 
   /* ---------- menu ---------- */
