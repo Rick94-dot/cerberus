@@ -457,7 +457,7 @@
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
-    margin-bottom: 6px;
+    margin-bottom: 18px;
   }
   .spec-head h2 {
     margin: 0;
@@ -468,12 +468,6 @@
     color: var(--dim);
   }
   .spec-head .count { font-size: 0.8rem; font-weight: 300; color: var(--dim); }
-  .spec-note {
-    margin: 0 0 18px;
-    font-size: 0.82rem;
-    font-weight: 300;
-    color: var(--dim);
-  }
 
   .spec-list {
     display: grid;
@@ -522,6 +516,147 @@
   .check-item input:focus-visible + .check-box {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
+  }
+
+  /* ---------- botão prospectar ---------- */
+  .prospect-wrap {
+    width: min(920px, 100%);
+    margin: 34px auto 0;
+    display: flex;
+    justify-content: flex-end;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity .4s ease, transform .4s ease, visibility .4s;
+  }
+  .prospect-wrap.show { opacity: 1; visibility: visible; transform: none; }
+
+  .prospect {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    overflow: hidden;
+    padding: 14px 30px;
+    border-radius: 8px;
+    border: 0;
+    outline: 1px solid rgba(255,255,255,0.85);
+    background: #ffffff;
+    color: #0d0d12;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  /* o bloco gira e sobe da diagonal, cobrindo o botão no hover */
+  .prospect .fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 12rem;
+    height: 12rem;
+    margin: 0 0 2.25rem 2.25rem;
+    border-radius: 8px;
+    background: var(--brand);
+    transform: translate(-100%, 100%) rotate(-40deg);
+    transition: all .5s ease-out;
+  }
+  .prospect:hover .fill,
+  .prospect:focus-visible .fill {
+    margin: 0 0 8rem 0;
+    transform: translate(0, 100%) rotate(-40deg);
+  }
+  .prospect .txt {
+    position: relative;
+    width: 100%;
+    text-align: left;
+    transition: color .3s ease-in-out;
+  }
+  .prospect:hover .txt,
+  .prospect:focus-visible .txt { color: #ffffff; }
+
+  /* ---------- carregamento da prospecção ---------- */
+  .prospect-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    background: rgba(6,6,12,0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .4s ease, visibility .4s;
+  }
+  .prospect-overlay.on { opacity: 1; visibility: visible; }
+
+  .vprogress {
+    position: relative;
+    width: min(300px, 70vw);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 4px solid var(--brand);
+    border-radius: 24px;
+    background: #0a0a0e;
+  }
+  .vprogress .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+  .vprogress .bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 0%;
+    z-index: 20;
+    background: var(--brand);
+    transition: height .3s ease;
+  }
+  /* faixas diagonais por cima do preenchimento */
+  .vprogress .bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(45deg,
+      rgba(255,255,255,.15) 25%, transparent 25%,
+      transparent 50%, rgba(255,255,255,.15) 50%,
+      rgba(255,255,255,.15) 75%, transparent 75%, transparent);
+    background-size: 12px 12px;
+    animation: stripes 1s linear infinite;
+  }
+  @keyframes stripes { to { background-position: 12px 0; } }
+
+  .vprogress .pct {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .vprogress .pct small { font-size: 1rem; font-weight: 500; }
+
+  .prospect-status {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 400;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vprogress .bar::after { animation: none; }
+    .prospect .fill { transition: none; }
   }
 
   /* ---------- menu (igual ao da home) ---------- */
@@ -709,6 +844,16 @@
   </div>
 </div>
 
+<div class="prospect-overlay" id="prospectOverlay" role="status" aria-live="polite">
+  <div class="vprogress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="vprogress">
+    <div class="frame">
+      <div class="bar" id="progressBar"></div>
+      <div class="pct"><span id="progressPct">0</span><small>%</small></div>
+    </div>
+  </div>
+  <p class="prospect-status">Prospectando</p>
+</div>
+
 <div class="aurora" role="img" aria-label="Fundo animado com estrelas e luzes em movimento">
   <div class="glow"></div>
   <div class="blobs">
@@ -774,9 +919,15 @@
         Selecionar todas
       </button>
     </div>
-    <p class="spec-note" id="specNote"></p>
     <div class="spec-list" id="specList" role="group" aria-labelledby="specCaption"></div>
   </section>
+
+  <div class="prospect-wrap" id="prospectWrap">
+    <button type="button" class="prospect" id="prospectBtn">
+      <span class="fill" aria-hidden="true"></span>
+      <span class="txt">Prospectar</span>
+    </button>
+  </div>
 </main>
 </div>
 
@@ -1221,7 +1372,6 @@
 
     const section = document.getElementById("specialties");
     const listEl = document.getElementById("specList");
-    const noteEl = document.getElementById("specNote");
     const countEl = document.getElementById("specCount");
     const toggleAll = document.getElementById("specToggleAll");
     const operators = document.getElementById("operators");
@@ -1282,6 +1432,11 @@
       countEl.textContent = selected.size
         ? "· " + selected.size + " de " + current.length
         : "";
+
+      section.dispatchEvent(new CustomEvent("specialties:changed", {
+        bubbles: true,
+        detail: { selected: Array.from(selected) }
+      }));
     }
 
     toggleAll.addEventListener("click", () => {
@@ -1307,12 +1462,10 @@
 
       if (ops.length === 1) {
         current = (BY_OPERATOR[ops[0]] || []).slice();
-        noteEl.textContent = "Especialidades disponíveis na " + ops[0] + ".";
       } else {
+        // lista única; a conversão para o nome de cada operadora
+        // acontece nos bastidores
         current = CANONICAL.slice();
-        noteEl.textContent =
-          "Lista única para as " + ops.length +
-          " operadoras selecionadas; cada item é convertido para o nome usado por cada uma.";
       }
 
       // mantém o que já estava marcado, se ainda existir na nova lista
@@ -1323,6 +1476,69 @@
       render();
       section.classList.add("show");
       section.setAttribute("aria-hidden", "false");
+    });
+  })();
+
+  /* ---------- botão prospectar e simulação de carregamento ---------- */
+  (function prospect() {
+    const wrap = document.getElementById("prospectWrap");
+    const btn = document.getElementById("prospectBtn");
+    const overlay = document.getElementById("prospectOverlay");
+    const bar = document.getElementById("progressBar");
+    const pct = document.getElementById("progressPct");
+    const gauge = document.getElementById("vprogress");
+    const specialties = document.getElementById("specialties");
+    const operators = document.getElementById("operators");
+    if (!wrap || !btn || !overlay) return;
+
+    let running = false;
+
+    function reveal(state) {
+      wrap.classList.toggle("show", state);
+    }
+
+    // aparece só quando existe pelo menos uma especialidade marcada
+    specialties.addEventListener("specialties:changed", e => {
+      reveal(e.detail.selected.length > 0);
+    });
+    // se as operadoras saem de cena, o botão vai junto
+    operators.addEventListener("operators:changed", e => {
+      if (!e.detail.selected.length) reveal(false);
+    });
+
+    function setProgress(v) {
+      const clamped = Math.min(Math.max(v, 0), 100);
+      bar.style.height = clamped + "%";
+      pct.textContent = Math.round(clamped);
+      gauge.setAttribute("aria-valuenow", String(Math.round(clamped)));
+    }
+
+    btn.addEventListener("click", () => {
+      if (running) return;
+      running = true;
+      setProgress(0);
+      overlay.classList.add("on");
+      document.body.classList.add("menu-open");
+
+      // avanço irregular, para parecer trabalho de verdade em vez de
+      // uma contagem linear
+      let value = 0;
+      const timer = setInterval(() => {
+        const step = value < 70 ? 1 + Math.random() * 3
+                   : value < 92 ? 0.4 + Math.random() * 1.2
+                   : 0.6 + Math.random();
+        value = Math.min(value + step, 100);
+        setProgress(value);
+
+        if (value >= 100) {
+          clearInterval(timer);
+          setTimeout(() => {
+            overlay.classList.remove("on");
+            document.body.classList.remove("menu-open");
+            running = false;
+          }, 700);
+        }
+      }, 90);
     });
   })();
 
