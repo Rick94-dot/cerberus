@@ -1375,7 +1375,6 @@
     function reveal(state) {
       section.classList.toggle("show", state);
       section.setAttribute("aria-hidden", String(!state));
-      if (!state) section.dispatchEvent(new CustomEvent("operators:hidden", { bubbles: true }));
     }
 
     // só aparece depois que uma cidade foi escolhida na lista
@@ -1385,19 +1384,11 @@
       section.dataset.uf = e.detail.uf || "";
     });
 
-    // enquanto não houver cidade confirmada, as seções ficam recolhidas
-    function currentLabel() {
-      if (!section.dataset.city) return null;
-      return section.dataset.city +
-        (section.dataset.uf ? " - " + section.dataset.uf : "");
-    }
-    input.addEventListener("input", () => {
-      if (input.value !== currentLabel()) reveal(false);
-    });
+    // trocar ou apagar a cidade não recolhe as seções: o que já foi
+    // marcado continua na tela, pronto para a próxima busca
     input.addEventListener("city:cleared", () => {
       delete section.dataset.city;
       delete section.dataset.uf;
-      reveal(false);
     });
 
     // limpar tudo: volta ao estado inicial, inclusive as marcações
@@ -1564,12 +1555,6 @@
       section.setAttribute("aria-hidden", "false");
     });
 
-    // a seção some junto com as operadoras quando não há cidade
-    operators.addEventListener("operators:hidden", () => {
-      section.classList.remove("show");
-      section.setAttribute("aria-hidden", "true");
-    });
-
     document.addEventListener("filters:reset", () => {
       selected.clear();
       current = [];
@@ -1607,10 +1592,6 @@
     operators.addEventListener("operators:changed", e => {
       showBar(operators.classList.contains("show"));
       if (!e.detail.selected.length) readyToProspect(false);
-    });
-    operators.addEventListener("operators:hidden", () => {
-      showBar(false);
-      readyToProspect(false);
     });
 
     if (clearAll) {
