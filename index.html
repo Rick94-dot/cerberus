@@ -215,6 +215,26 @@
     padding: 0 22px;
   }
   .search-icon { color: var(--dim); flex-shrink: 0; }
+
+  .clear-city {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    color: var(--dim);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.8);
+    transition: opacity .2s ease, transform .2s ease, visibility .2s,
+                background .2s ease, color .2s ease;
+  }
+  .clear-city.show { opacity: 1; visibility: visible; transform: none; }
+  .clear-city:hover { background: rgba(215,0,100,0.22); color: #ff7ab0; }
   .searchbar input {
     flex: 1;
     min-width: 0;
@@ -523,13 +543,32 @@
     width: min(920px, 100%);
     margin: 34px auto 0;
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
     opacity: 0;
     visibility: hidden;
     transform: translateY(12px);
     transition: opacity .4s ease, transform .4s ease, visibility .4s;
   }
   .prospect-wrap.show { opacity: 1; visibility: visible; transform: none; }
+
+  .clear-all {
+    background: none;
+    border: 0;
+    padding: 8px 2px;
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: color .25s ease, border-color .25s ease;
+  }
+  .clear-all:hover { color: #ff7ab0; border-color: rgba(215,0,100,0.5); }
 
   .prospect {
     position: relative;
@@ -576,6 +615,9 @@
   }
   .prospect:hover .txt,
   .prospect:focus-visible .txt { color: #ffffff; }
+
+  /* o botão só fica disponível depois que há especialidade escolhida */
+  .prospect.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
   /* ---------- carregamento da prospecção ---------- */
   .prospect-overlay {
@@ -896,6 +938,12 @@
           <input id="q" type="text" placeholder="Buscar cidade..." autocomplete="off"
                  role="combobox" aria-expanded="false" aria-autocomplete="list"
                  aria-controls="suggestions" />
+          <button type="button" class="clear-city" id="clearCity" aria-label="Limpar cidade">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </form>
       </div>
     </div>
@@ -923,7 +971,8 @@
   </section>
 
   <div class="prospect-wrap" id="prospectWrap">
-    <button type="button" class="prospect" id="prospectBtn">
+    <button type="button" class="clear-all" id="clearAll">Limpar tudo</button>
+    <button type="button" class="prospect hidden" id="prospectBtn">
       <span class="fill" aria-hidden="true"></span>
       <span class="txt">Prospectar</span>
     </button>
@@ -1110,15 +1159,35 @@
       if (!c) return;
       input.value = c.uf ? c.name + " - " + c.uf : c.name;
       open(false);
+      syncClear();
       input.dispatchEvent(new CustomEvent("city:selected", {
         bubbles: true,
         detail: c
       }));
     }
 
+    const clearBtn = document.getElementById("clearCity");
+
+    function syncClear() {
+      if (clearBtn) clearBtn.classList.toggle("show", input.value.length > 0);
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        input.value = "";
+        items = [];
+        open(false);
+        syncClear();
+        input.focus();
+        // avisa que não há cidade escolhida; as seleções seguintes ficam de pé
+        input.dispatchEvent(new CustomEvent("city:cleared", { bubbles: true }));
+      });
+    }
+
     let timer;
     input.addEventListener("input", () => {
       clearTimeout(timer);
+      syncClear();
       const value = input.value;
       // espera o usuário parar de digitar antes de filtrar
       timer = setTimeout(() => search(value), 140);
@@ -1301,10 +1370,12 @@
       sync();
     });
 
+    // esconde sem apagar: se o usuário trocar de cidade, as escolhas
+    // continuam valendo e a seção volta como estava
     function reveal(state) {
       section.classList.toggle("show", state);
       section.setAttribute("aria-hidden", String(!state));
-      if (!state) { selected.clear(); sync(); }
+      if (!state) section.dispatchEvent(new CustomEvent("operators:hidden", { bubbles: true }));
     }
 
     // só aparece depois que uma cidade foi escolhida na lista
@@ -1314,13 +1385,28 @@
       section.dataset.uf = e.detail.uf || "";
     });
 
-    // se o usuário volta a mexer no campo, a escolha anterior deixa de valer
+    // enquanto não houver cidade confirmada, as seções ficam recolhidas
+    function currentLabel() {
+      if (!section.dataset.city) return null;
+      return section.dataset.city +
+        (section.dataset.uf ? " - " + section.dataset.uf : "");
+    }
     input.addEventListener("input", () => {
-      if (input.value !== (section.dataset.city
-          ? section.dataset.city + (section.dataset.uf ? " - " + section.dataset.uf : "")
-          : null)) {
-        reveal(false);
-      }
+      if (input.value !== currentLabel()) reveal(false);
+    });
+    input.addEventListener("city:cleared", () => {
+      delete section.dataset.city;
+      delete section.dataset.uf;
+      reveal(false);
+    });
+
+    // limpar tudo: volta ao estado inicial, inclusive as marcações
+    document.addEventListener("filters:reset", () => {
+      selected.clear();
+      sync();
+      delete section.dataset.city;
+      delete section.dataset.uf;
+      reveal(false);
     });
 
     sync();
@@ -1454,9 +1540,9 @@
       if (!ops.length) {
         section.classList.remove("show");
         section.setAttribute("aria-hidden", "true");
-        selected.clear();
         current = [];
         listEl.innerHTML = "";
+        sync();
         return;
       }
 
@@ -1477,6 +1563,21 @@
       section.classList.add("show");
       section.setAttribute("aria-hidden", "false");
     });
+
+    // a seção some junto com as operadoras quando não há cidade
+    operators.addEventListener("operators:hidden", () => {
+      section.classList.remove("show");
+      section.setAttribute("aria-hidden", "true");
+    });
+
+    document.addEventListener("filters:reset", () => {
+      selected.clear();
+      current = [];
+      listEl.innerHTML = "";
+      section.classList.remove("show");
+      section.setAttribute("aria-hidden", "true");
+      sync();
+    });
   })();
 
   /* ---------- botão prospectar e simulação de carregamento ---------- */
@@ -1491,20 +1592,41 @@
     const operators = document.getElementById("operators");
     if (!wrap || !btn || !overlay) return;
 
+    const clearAll = document.getElementById("clearAll");
     let running = false;
 
-    function reveal(state) {
-      wrap.classList.toggle("show", state);
-    }
+    // a barra aparece assim que há operadoras em cena, para o "limpar tudo"
+    // ficar sempre ao alcance; o botão de prospectar só se libera depois
+    // que existe especialidade marcada
+    function showBar(state) { wrap.classList.toggle("show", state); }
+    function readyToProspect(state) { btn.classList.toggle("hidden", !state); }
 
-    // aparece só quando existe pelo menos uma especialidade marcada
     specialties.addEventListener("specialties:changed", e => {
-      reveal(e.detail.selected.length > 0);
+      readyToProspect(e.detail.selected.length > 0);
     });
-    // se as operadoras saem de cena, o botão vai junto
     operators.addEventListener("operators:changed", e => {
-      if (!e.detail.selected.length) reveal(false);
+      showBar(operators.classList.contains("show"));
+      if (!e.detail.selected.length) readyToProspect(false);
     });
+    operators.addEventListener("operators:hidden", () => {
+      showBar(false);
+      readyToProspect(false);
+    });
+
+    if (clearAll) {
+      clearAll.addEventListener("click", () => {
+        const input = document.getElementById("q");
+        if (input) {
+          input.value = "";
+          input.dispatchEvent(new CustomEvent("city:cleared", { bubbles: true }));
+          const x = document.getElementById("clearCity");
+          if (x) x.classList.remove("show");
+        }
+        document.dispatchEvent(new CustomEvent("filters:reset"));
+        showBar(false);
+        readyToProspect(false);
+      });
+    }
 
     function setProgress(v) {
       const clamped = Math.min(Math.max(v, 0), 100);
